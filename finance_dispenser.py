@@ -14,11 +14,14 @@ parser.add_argument("prefix", default="real_data/", nargs="?",
             help="""Prefix to be added to the names of files.
             For example: \"data/my_\" -> data/my_items.csv, data/my_rules.yml""")
 parser.add_argument("--round", type=int, default=2, help="Number of digits to round the numbers")
+parser.add_argument("--keep_negative", action="store_false", dest = "resolve_negative",
+                    help="If enabled, allows negative values")
 
 args = parser.parse_args()
 file = args.prefix + "items.csv"
 
-rules = yaml.safe_load(open(args.prefix + "rules.yml", encoding="utf-8"))
+with open(args.prefix + "rules.yml", encoding="utf-8") as f:
+    rules = yaml.safe_load(f)
 
 groups = rules['groups']
 
@@ -26,6 +29,7 @@ groups = {n: set(g) for (n, g) in groups.items()}
 all_p = set.union(*groups.values())
 
 def check_exists(v: str|set[str]|list[str]) -> None:
+    '''Check if value is a valid set of people'''
     if isinstance(v, set):
         for s in v:
             assert s in all_p, "\"" + str(v) + "\" not in names list: " + str(all_p)
@@ -49,18 +53,11 @@ operations: list[Transaction] = []
 balance: dict[str, list[float]] = {p: [] for p in all_p }
 
 def pay(_from, _to, frac=1, comment="", order=0):
-    check_exists(_from)
-    check_exists(_to)
-
-    assert isinstance(this['name'], str), f"Transaction name: \"{this["name"]}\" must be string"
-    assert isinstance(this["price"], int|float|Fraction), f"Transaction sum: \"{this["price"]}\" must be number"
-    assert isinstance(frac, int|float|Fraction), f"Transaction fraction \"{frac}\" must be number"
-    assert isinstance(comment, str), f"Transaction name: \"{comment}\" must be string"
-    assert isinstance(order, int|float|Fraction), f"Transaction fraction \"{order}\" must be number"
-    operations.append(Transaction(
-        _from, _to, this["name"], float(this["price"]), frac, comment, order))
+    '''Create transaction associated with this item'''
+    just_pay(_from, _to, this['name'], this['price'], frac, comment, order)
 
 def just_pay(_from, _to, name, value, frac=1, comment="", order=0):
+    '''Create a transaction out of nothing with specified name'''
     check_exists(_from)
     check_exists(_to)
 
@@ -70,14 +67,29 @@ def just_pay(_from, _to, name, value, frac=1, comment="", order=0):
     assert isinstance(comment, str), f"Transaction name: \"{comment}\" must be string"
     assert isinstance(order, int|float|Fraction), f"Transaction fraction \"{order}\" must be number"
 
+    if frac < 0 and args.resolve_negative:
+        frac = -frac
+        _from, _to = _to, _from
+
+    if value < 0 and args.resolve_negative:
+        value = -value
+        _from, _to = _to, _from
+
     operations.append(Transaction(_from, _to, name, float(value), frac, comment, order))
 
 if "preamble" in rules:
     # pylint: disable-next=exec-used
     exec(rules['preamble'], {"all": all_p, "Frac": Fraction, "just_pay": just_pay} | groups)
 
+def comment_strip(csv_file):
+    '''Returns a generator stripping all comments'''
+    for row in csv_file:
+        raw = row.split('#')[0].strip()
+        if raw:
+            yield raw
+
 with open(file, newline="", encoding="utf-8") as f:
-    reader = csv.DictReader(f, delimiter=";")
+    reader = csv.DictReader(comment_strip(f), delimiter=";")
     for item in reader:
         item = {n: convert_value(v) for (n, v) in item.items()}
 
@@ -91,9 +103,9 @@ with open(file, newline="", encoding="utf-8") as f:
 
 operations.sort(key=lambda op:
     (op.order,
+     "".join(op.from_),
      op.comment,
-     hash(next(iter(into_iterable(op.from_)))),
-     hash(next(iter(into_iterable(op.to_))))))
+     "".join(op.to_)))
 
 print()
 print()
@@ -122,7 +134,7 @@ for (k, transact) in groupby(operations, key=lambda op: (op.from_, op.to_, op.fr
     inner = f"{f"(x{str(round_any(k[2], 2 + max(0, args.round)))})" if k[2] != 1 else "":-^15}"
     print(colored("\t--", "magenta")
           + colored(inner, "light_cyan") + colored("->\t", "magenta"), end=" ")
-    print(check_len(k[1]), "×", colored(to_cost, "yellow"),
+    print(check_len(k[1]), "×", colored(f"{to_cost:7}", "yellow"),
           colored("\t->", "magenta"), colored(group_display(k[1]), "green"), end=": \t")
     print(f"{(", ".join(names)):36}", end="")
     if k[3] != "":
@@ -134,7 +146,8 @@ print()
 for p in sorted(balance):
     print(f"{p:10}", end=": \t")
     print(" ".join(
-        (f"{balance_color(f"{display_float(display_float(round(b, args.round))):+}", b).replace("+", "+ ").replace("-", "- "):9}"
+        (f"{balance_color(f"{display_float(round(b, args.round)):+}", b)
+            .replace("+", "+ ").replace("-", "- "):9}"
          for b in balance[p])), end="\n\t\t")
     print("=", balance_color(round(sum(balance[p]), args.round)))
     print()

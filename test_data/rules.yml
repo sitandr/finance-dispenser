@@ -1,0 +1,41 @@
+groups:
+  main: # maun party group
+    - Bob
+    - Tom
+    - Alice
+    - Eve
+    - Jake
+
+  nut_allergic:
+    - Tom
+    - Alice
+
+  pineappleaters:
+    - Alice
+    - Bob
+    - Jake
+  
+  others:
+    - Evan # didn't even participate in the party
+  
+rules: |
+  # code is simple and repetitive for demonstration purposes
+  # in your code you can do anything you wish 
+  
+  match tag:
+    case None:
+      if to == None:
+        pay(main, buyer) # simple case: everyone pays to buyer
+      else:
+        pay(to, buyer) # a single person pays to buyer
+    case "P":
+      pay(pineappleaters, buyer, comment="Pineapple product")
+    case "N":
+      pay(main - nut_allergic, buyer, comment="Nut product") # everyone pays except nut-allergic
+    case _:
+      assert False
+  
+  if taken_by != None:
+    pay(taken_by, main, left_ratio, comment="Taken home")
+
+  

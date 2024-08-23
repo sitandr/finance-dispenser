@@ -1,0 +1,35 @@
+name;price;buyer;tag;to;taken_by;left_ratio
+
+# (empty columns in the end may be omitted)
+# Bob bought pizza for everyone that cost 100$
+# That means everyone should pay to Bob
+pizza_pepperoni;40;Bob
+pizza_margherita;60;Bob
+
+# Then Bob bought some... pinapple pizza.
+# Many didn't like it and didn't eat this pizza.
+# P means "Pineapple" tag
+pineapple_pizza;50;Bob;P
+
+# Tom brought some lemonade
+lemonade;20;Tom
+
+# Eve bought big ice-cream with nuts to everyone
+# but Tom and Alice are allergic to nuts (N)!
+nuts-ice-cream;90;Eve;N
+
+# Tom bought some ice-cream for himself and Alice
+ice-cream;70;Bob;;Alice
+
+# Eve asked her friend Evan to bring some cookies
+# That friend didn't participate in party at all
+# However, cookies were not very tasty
+# So by the end of the party there was still half of them left
+# Eve took the remaining cookies home
+cookies;30;Evan;;;Eve;1/2
+
+# Bob lost a bet to Jake
+# Usually person that receives pays to buyer
+# In our case this is reversed
+# So we can for demonstration purposes put minus sign
+bet;-50;Bob;;Jake

@@ -3,8 +3,14 @@ from termcolor import colored
 
 
 def convert_value(s: str | None) -> str | int | float | Fraction | None:
-    if s == None or len(s) == 0:
+    if s is None or len(s) == 0:
         return None
+
+    if s[0] == "-":
+        v = convert_value(s[1:])
+        if v is None or isinstance(v, str):
+            return s
+        return -v
 
     if s.isdigit():
         return int(s)
