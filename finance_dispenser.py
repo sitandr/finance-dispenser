@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import csv
 from fractions import Fraction
 from itertools import groupby
+import tabulate
 from termcolor import colored
 import yaml
 # pylint: disable-next=wildcard-import
@@ -16,6 +17,7 @@ parser.add_argument("prefix", default="real_data/", nargs="?",
 parser.add_argument("--round", type=int, default=2, help="Number of digits to round the numbers")
 parser.add_argument("--keep_negative", action="store_false", dest = "resolve_negative",
                     help="If enabled, allows negative values")
+parser.add_argument("--no_color", action="store_true", help="Disables color in output")
 
 args = parser.parse_args()
 file = args.prefix + "items.csv"
@@ -77,9 +79,11 @@ def just_pay(_from, _to, name, value, frac=1, comment="", order=0):
 
     operations.append(Transaction(_from, _to, name, float(value), frac, comment, order))
 
+var = {} # local variables
+
 if "preamble" in rules:
     # pylint: disable-next=exec-used
-    exec(rules['preamble'], {"all": all_p, "Frac": Fraction, "just_pay": just_pay} | groups)
+    exec(rules['preamble'], {"all_p": all_p, "Frac": Fraction, "just_pay": just_pay, "var": var} | groups)
 
 def comment_strip(csv_file):
     '''Returns a generator stripping all comments'''
@@ -94,11 +98,10 @@ with open(file, newline="", encoding="utf-8") as f:
         item = {n: convert_value(v) for (n, v) in item.items()}
 
         this = item
-        var = {} # local variables
 
         # pylint: disable-next=exec-used
         exec(rules['rules'],
-             item | {"all": all_p, "pay": pay, "Frac": Fraction, "just_pay": just_pay, "var": var}
+             item | {"all_p": all_p, "pay": pay, "Frac": Fraction, "just_pay": just_pay, "var": var}
              | groups)
 
 operations.sort(key=lambda op:
@@ -110,7 +113,10 @@ operations.sort(key=lambda op:
 print()
 print()
 
+rows = []
+
 for (k, transact) in groupby(operations, key=lambda op: (op.from_, op.to_, op.frac, op.comment)):
+    row = []
     transact = list(transact)
 
     names = [colored(t.name, "cyan") + colored(f"({display_float(t.value)})", "yellow")
@@ -129,25 +135,53 @@ for (k, transact) in groupby(operations, key=lambda op: (op.from_, op.to_, op.fr
     from_cost = display_float(round(from_cost, args.round))
     to_cost = display_float(round(to_cost, args.round))
 
-    print(colored(group_display(k[0]), "magenta"), colored("\t->", "magenta"),
-          check_len(k[0]), "×", colored(f"{from_cost:7}", "red"), end=" ")
-    inner = f"{f"(x{str(round_any(k[2], 2 + max(0, args.round)))})" if k[2] != 1 else "":-^15}"
-    print(colored("\t--", "magenta")
-          + colored(inner, "light_cyan") + colored("->\t", "magenta"), end=" ")
-    print(check_len(k[1]), "×", colored(f"{to_cost:7}", "yellow"),
-          colored("\t->", "magenta"), colored(group_display(k[1]), "green"), end=": \t")
-    print(f"{(", ".join(names)):36}", end="")
-    if k[3] != "":
-        print(colored("\t# " + k[3], "dark_grey"), end="")
-    print()
+    row.append(colored(group_display(k[0]), "magenta")) # from whom
 
+    row.append(colored("-> ", "magenta")
+               + str(check_len(k[0])) + " ×") # from number
+    row.append(colored(from_cost, "red")) # "from" money
+
+    inner = f"{f"(x{str(round_any(k[2], 2 + max(0, args.round)))})" if k[2] != 1 else "":-^8}"
+    row.append(colored("--", "magenta")
+          + colored(inner, "light_cyan") + colored("->", "magenta")) # multiplier
+
+    row.append(str(check_len(k[1])) + " ×") # to number
+    row.append(colored(to_cost, "yellow")) # "to" money
+    row.append(colored("->", "magenta")) # separator
+    row.append(colored(group_display(k[1]), "green"))
+    row.append(":")
+
+    row.append(", ".join(names))
+    if k[3] != "":
+        row.append(colored("# " + k[3], "dark_grey"))
+    else:
+        row.append("")
+
+    rows.append(row)
+    if len(", ".join(names)) > 50 or len(group_display(k[0])) > 20 or len(group_display(k[1])) > 20:
+        #rows.append(["·" * 7, "", "", "", "", "", "", "·" * 5, "", "·" * 5])  
+        rows.append([])
+
+t_format = tabulate._table_formats["plain"]
+tabulate._table_formats["plain"] = tabulate._table_formats["plain"]._replace(
+    datarow = tabulate.DataRow(begin="", sep=" ", end=""),
+    # linebetweenrows=tabulate.Line(begin='', sep=' ', end="", hline='─')
+)
+
+print(tabulate.tabulate(rows, tablefmt="plain", colalign=("right",), maxcolwidths=[20, None, None, None, None, None, None, 20, None, 40, None]))
 print()
 
+rows = []
 for p in sorted(balance):
-    print(f"{p:10}", end=": \t")
-    print(" ".join(
+    row = []
+    row.append(p)
+    row.append(":")
+    row.append(" ".join(
         (f"{balance_color(f"{display_float(round(b, args.round)):+}", b)
             .replace("+", "+ ").replace("-", "- "):9}"
-         for b in balance[p])), end="\n\t\t")
-    print("=", balance_color(round(sum(balance[p]), args.round)))
-    print()
+         for b in balance[p])))
+    row.append("ㅤ  = ㅤ")
+    row.append(balance_color(round(sum(balance[p]), args.round)))
+    rows.append(row)
+
+print(tabulate.tabulate(rows, tablefmt="plain"))

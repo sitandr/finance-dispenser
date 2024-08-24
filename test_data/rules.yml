@@ -22,20 +22,27 @@ rules: |
   # code is simple and repetitive for demonstration purposes
   # in your code you can do anything you wish 
   
-  match tag:
+  match tag: # cases of possible `tag`s
     case None:
       if to == None:
-        pay(main, buyer) # simple case: everyone pays to buyer
+        # simple case: everyone pays to buyer
+        # using external function:
+        # pay(from, to, fraction=1, comment="", order=0)
+        pay(main, buyer)
       else:
-        pay(to, buyer) # a single person pays to buyer
+        # a single person pays to buyer
+        # order=10 means this transaction will go in the end
+        pay(to, buyer, order=10)
     case "P":
       pay(pineappleaters, buyer, comment="Pineapple product")
     case "N":
-      pay(main - nut_allergic, buyer, comment="Nut product") # everyone pays except nut-allergic
+      # everyone pays except nut-allergic
+      pay(main - nut_allergic, buyer, comment="Nut product")
     case _:
-      assert False
+      raise ValueError(f"Wrong tag: {tag}")
   
   if taken_by != None:
+    # someone took this thing, so they should pay
     pay(taken_by, main, left_ratio, comment="Taken home")
 
   
