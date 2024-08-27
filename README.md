@@ -1,6 +1,6 @@
-This is a small cli app I made for my hikes to split the expenses with friends. Of course, there are already apps for this, but they are pretty bad at handling complex situations, so here it is.
+This is a small cli app I made for my hikes to split the expenses with friends (see also my [another hike dispenser project](https://github.com/sitandr/hike-dispenser) for proper distribution of mass, volumes and other things). Of course, there are already apps for this, but they are pretty bad at handling complex situations, so here it is.
 
-This is what the output look like:
+This is what the output looks like:
 
 []()
 
@@ -120,7 +120,7 @@ Available variables at execution:
 
 Order of rules execution is guaranteed to be in order they are in csv (though I wouldn't recommend to rely on it).
 
-`pay` signature:
+Signatures:
 
 ```
 pay(_from, _to, frac=1, comment="", order=0)

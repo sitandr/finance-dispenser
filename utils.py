@@ -1,6 +1,4 @@
 from fractions import Fraction
-from termcolor import colored
-
 
 def convert_value(s: str | None) -> str | int | float | Fraction | None:
     if s is None or len(s) == 0:
@@ -45,6 +43,7 @@ def into_iterable(s: str | list[str] | set[str]):
 
 
 def balance_color(s, n=None) -> str:
+    from finance_dispenser import colored
     if n == None:
         n = s
     if n > 0:

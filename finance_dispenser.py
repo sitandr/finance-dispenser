@@ -20,6 +20,10 @@ parser.add_argument("--keep_negative", action="store_false", dest = "resolve_neg
 parser.add_argument("--no_color", action="store_true", help="Disables color in output")
 
 args = parser.parse_args()
+
+if args.no_color:
+    colored = lambda a, b: str(a)
+
 file = args.prefix + "items.csv"
 
 with open(args.prefix + "rules.yml", encoding="utf-8") as f:
