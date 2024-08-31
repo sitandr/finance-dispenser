@@ -34,6 +34,13 @@ groups = rules['groups']
 groups = {n: set(g) for (n, g) in groups.items()}
 all_p = set.union(*groups.values())
 
+def comment_strip(csv_file):
+        '''Returns a generator stripping all comments'''
+        for row in csv_file:
+            raw = row.split('#')[0].strip()
+            if raw:
+                yield raw
+
 def check_exists(v: str|set[str]|list[str]) -> None:
     '''Check if value is a valid set of people'''
     if isinstance(v, set):
@@ -85,107 +92,106 @@ def just_pay(_from, _to, name, value, frac=1, comment="", order=0):
 
 var = {} # local variables
 
-if "preamble" in rules:
-    # pylint: disable-next=exec-used
-    exec(rules['preamble'], {"all_p": all_p, "Frac": Fraction, "just_pay": just_pay, "var": var} | groups)
-
-def comment_strip(csv_file):
-    '''Returns a generator stripping all comments'''
-    for row in csv_file:
-        raw = row.split('#')[0].strip()
-        if raw:
-            yield raw
-
-with open(file, newline="", encoding="utf-8") as f:
-    reader = csv.DictReader(comment_strip(f), delimiter=";")
-    for item in reader:
-        item = {n: convert_value(v) for (n, v) in item.items()}
-
-        this = item
-
+if __name__ == "__main__":
+    if "preamble" in rules:
         # pylint: disable-next=exec-used
-        exec(rules['rules'],
-             item | {"all_p": all_p, "pay": pay, "Frac": Fraction, "just_pay": just_pay, "var": var}
-             | groups)
+        exec(rules['preamble'],
+             {"all_p": all_p, "Frac": Fraction, "just_pay": just_pay, "var": var} | groups)
 
-operations.sort(key=lambda op:
-    (op.order,
-     "".join(op.from_),
-     op.comment,
-     "".join(op.to_)))
+    with open(file, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(comment_strip(f), delimiter=";")
+        for item in reader:
+            item = {n: convert_value(v) for (n, v) in item.items()}
 
-print()
-print()
+            this = item
 
-rows = []
+            # pylint: disable-next=exec-used
+            exec(rules['rules'],
+                item 
+                | {"all_p": all_p, "pay": pay, "Frac": Fraction, "just_pay": just_pay, "var": var}
+                | groups)
 
-for (k, transact) in groupby(operations, key=lambda op: (op.from_, op.to_, op.frac, op.comment)):
-    row = []
-    transact = list(transact)
+    operations.sort(key=lambda op:
+        (op.order,
+        "".join(op.from_),
+        op.comment,
+        "".join(op.to_)))
 
-    names = [colored(t.name, "cyan") + colored(f"({display_float(t.value)})", "yellow")
-             for t in transact]
-    money = sum((t.value for t in transact)) * k[2]
+    print()
+    print()
 
-    from_cost = float(money / check_len(k[0]))
-    to_cost = float(money / check_len(k[1]))
+    rows = []
 
-    for p in into_iterable(k[0]):
-        balance[p].append(-from_cost)
+    for (k, transact) in groupby(
+        operations,
+        key=lambda op: (op.from_, op.to_, op.frac, op.comment)):
 
-    for p in into_iterable(k[1]):
-        balance[p].append(to_cost)
+        row = []
+        transact = list(transact)
 
-    from_cost = display_float(round(from_cost, args.round))
-    to_cost = display_float(round(to_cost, args.round))
+        names = [colored(t.name, "cyan") + colored(f"({display_float(t.value)})", "yellow")
+                for t in transact]
+        money = sum((t.value for t in transact)) * k[2]
 
-    row.append(colored(group_display(k[0]), "magenta")) # from whom
+        from_cost = float(money / check_len(k[0]))
+        to_cost = float(money / check_len(k[1]))
 
-    row.append(colored("-> ", "magenta")
-               + str(check_len(k[0])) + " ×") # from number
-    row.append(colored(from_cost, "red")) # "from" money
+        for p in into_iterable(k[0]):
+            balance[p].append(-from_cost)
 
-    inner = f"{f"(x{str(round_any(k[2], 2 + max(0, args.round)))})" if k[2] != 1 else "":-^8}"
-    row.append(colored("--", "magenta")
-          + colored(inner, "light_cyan") + colored("->", "magenta")) # multiplier
+        for p in into_iterable(k[1]):
+            balance[p].append(to_cost)
 
-    row.append(str(check_len(k[1])) + " ×") # to number
-    row.append(colored(to_cost, "yellow")) # "to" money
-    row.append(colored("->", "magenta")) # separator
-    row.append(colored(group_display(k[1]), "green"))
-    row.append(":")
+        from_cost = display_float(round(from_cost, args.round))
+        to_cost = display_float(round(to_cost, args.round))
 
-    row.append(", ".join(names))
-    if k[3] != "":
-        row.append(colored("# " + k[3], "dark_grey"))
-    else:
-        row.append("")
+        row.append(colored(group_display(k[0]), "magenta")) # from whom
 
-    rows.append(row)
-    if len(", ".join(names)) > 50 or len(group_display(k[0])) > 20 or len(group_display(k[1])) > 20:
-        #rows.append(["·" * 7, "", "", "", "", "", "", "·" * 5, "", "·" * 5])  
-        rows.append([])
+        row.append(colored("-> ", "magenta")
+                + str(check_len(k[0])) + " ×") # from number
+        row.append(colored(from_cost, "red")) # "from" money
 
-t_format = tabulate._table_formats["plain"]
-tabulate._table_formats["plain"] = tabulate._table_formats["plain"]._replace(
-    datarow = tabulate.DataRow(begin="", sep=" ", end=""),
-    # linebetweenrows=tabulate.Line(begin='', sep=' ', end="", hline='─')
-)
+        inner = f"{f"(x{str(round_any(k[2], 2 + max(0, args.round)))})" if k[2] != 1 else "":-^8}"
+        row.append(colored("--", "magenta")
+            + colored(inner, "light_cyan") + colored("->", "magenta")) # multiplier
 
-print(tabulate.tabulate(rows, tablefmt="plain", colalign=("right",), maxcolwidths=[20, None, None, None, None, None, None, 20, None, 40, None]))
-print()
+        row.append(str(check_len(k[1])) + " ×") # to number
+        row.append(colored(to_cost, "yellow")) # "to" money
+        row.append(colored("->", "magenta")) # separator
+        row.append(colored(group_display(k[1]), "green"))
+        row.append(":")
 
-rows = []
-for p in sorted(balance):
-    row = []
-    row.append(p)
-    row.append(":")
-    row.append(" ".join(
-        (f"{balance_color(f"{display_float(round(b, args.round)):+}", b)
-            .replace("+", "+ ").replace("-", "- "):9}"
-         for b in balance[p])))
-    row.append("ㅤ  = ㅤ")
-    row.append(balance_color(round(sum(balance[p]), args.round)))
-    rows.append(row)
+        row.append(", ".join(names))
+        if k[3] != "":
+            row.append(colored("# " + k[3], "dark_grey"))
+        else:
+            row.append("")
 
-print(tabulate.tabulate(rows, tablefmt="plain"))
+        rows.append(row)
+        if len(", ".join(names)) > 50 or len(group_display(k[0])) > 20 or len(group_display(k[1])) > 20:
+            #rows.append(["·" * 7, "", "", "", "", "", "", "·" * 5, "", "·" * 5])  
+            rows.append([])
+
+    t_format = tabulate._table_formats["plain"]
+    tabulate._table_formats["plain"] = tabulate._table_formats["plain"]._replace(
+        datarow = tabulate.DataRow(begin="", sep=" ", end=""),
+        # linebetweenrows=tabulate.Line(begin='', sep=' ', end="", hline='─')
+    )
+
+    print(tabulate.tabulate(rows, tablefmt="plain", colalign=("right",), maxcolwidths=[20, None, None, None, None, None, None, 20, None, 40, None]))
+    print()
+
+    rows = []
+    for p in sorted(balance):
+        row = []
+        row.append(p)
+        row.append(":")
+        row.append(" ".join(
+            (f"{balance_color(f"{display_float(round(b, args.round)):+}", b)
+                .replace("+", "+ ").replace("-", "- "):9}"
+            for b in balance[p])))
+        row.append("ㅤ  = ㅤ")
+        row.append(balance_color(round(sum(balance[p]), args.round)))
+        rows.append(row)
+
+    print(tabulate.tabulate(rows, tablefmt="plain"))
